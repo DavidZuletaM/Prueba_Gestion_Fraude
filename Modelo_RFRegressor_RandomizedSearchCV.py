@@ -262,10 +262,31 @@ y_pred = busq_rf.best_estimator_.predict(X_prueba)
 mape = calc_mape(y_prueba, y_pred)
 print(f"MAPE en el conjunto de prueba: {mape:.2f}%")
 
-# Asegurar que la base de prueba tenga las mismas columnas que X_train
-dtos_prueba = dtos_prueba[X_entrena.columns.union(['Latitud', 'Longitud'])]
+# Asegurar que la base de prueba tenga las columnas que el modelo espera
+columnas_esperadas = X_entrena.columns
+dtos_prueba = dtos_prueba[[col for col in columnas_esperadas if col in dtos_prueba.columns]]
 
-# Predecir y añadir columna
+# Manejar columnas faltantes
+columnas_faltantes = [col for col in columnas_esperadas if col not in dtos_prueba.columns]
+if columnas_faltantes:
+   print(f"Advertencia: Las siguientes columnas faltan en dtos_prueba y se llenarán con NaN: {columnas_faltantes}")
+   for col in columnas_faltantes:
+       dtos_prueba[col] = np.nan
+
+# Asegurar que los tipos de datos sean consistentes
+# Identificar columnas numéricas y categóricas basadas en X_entrena
+caracts_num = X_entrena.select_dtypes(include=['int64', 'float64']).columns
+caracts_cat = X_entrena.select_dtypes(include=['object']).columns
+
+# Convertir columnas numéricas a float, reemplazando valores no numéricos por NaN
+for col in caracts_num:
+   dtos_prueba[col] = pd.to_numeric(dtos_prueba[col], errors='coerce')
+
+# Convertir columnas categóricas a string, reemplazando valores problemáticos
+for col in caracts_cat:
+   dtos_prueba[col] = dtos_prueba[col].astype(str).replace('nan', 'missing')
+
+# Predecir directamente con el pipeline ajustado
 dtos_prueba['valor_total_avaluo'] = busq_rf.best_estimator_.predict(dtos_prueba)
 
 # Cargar base_evaluada.csv entregada
